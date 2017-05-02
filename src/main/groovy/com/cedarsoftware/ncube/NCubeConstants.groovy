@@ -65,4 +65,6 @@ interface NCubeConstants
     static final String NCUBE_PARAMS_BYTE_CODE_VERSION = 'byteCodeVersion'
     static final String NCUBE_ACCEPTED_DOMAINS = 'acceptedDomains'
     static final String NCUBE_PARAMS_BRANCH = 'branch'
+    static final String NCUBE_PARAMS_GENERATED_SOURCES_DIR = 'genSrcDir'
+    static final String NCUBE_PARAMS_GENERATED_CLASSES_DIR = 'genClsDir'
 }

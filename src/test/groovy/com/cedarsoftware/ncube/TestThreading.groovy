@@ -13,7 +13,10 @@ import org.junit.runners.Parameterized
 
 import java.util.concurrent.ConcurrentLinkedQueue
 
+import static com.cedarsoftware.ncube.NCubeConstants.NCUBE_PARAMS_GENERATED_CLASSES_DIR
+import static com.cedarsoftware.ncube.NCubeConstants.NCUBE_PARAMS_GENERATED_SOURCES_DIR
 import static org.junit.Assert.assertEquals
+import static org.junit.Assert.assertFalse
 import static org.junit.Assert.assertNotNull
 
 @RunWith(value = Parameterized.class)
@@ -39,7 +42,7 @@ class TestThreading
     private Map testArgs
     private NCube cp
 
-    private static final Logger LOG = LogManager.getLogger(GroovyExpression.class)
+    private static final Logger LOG = LogManager.getLogger(TestThreading.class)
 
     @Parameterized.Parameters(name = "{0}")
     static Collection<Object[]> data() {
@@ -53,11 +56,13 @@ class TestThreading
 
         data << [ ['load':load,'threads':threads,'count':count,'clearCache':false, 'loopTest':loopTest, 'preCache':false, 'sleep':sleep] ]
         data << [ ['load':load,'threads':threads,'count':count,'clearCache':true, 'loopTest':loopTest, 'preCache':false, 'sleep':sleep] ]
+        data << [ ['load':load,'threads':threads,'count':count,'clearCache':false, 'loopTest':loopTest, 'preCache':true, 'sleep':sleep] ]
         data << [ ['load':load,'threads':threads,'count':count,'clearCache':true, 'loopTest':loopTest, 'preCache':true, 'sleep':sleep] ]
 
         load = 50; threads = 5; count = 5
         data << [ ['load':load * 2,'threads':threads,'count':count,'clearCache':false, 'loopTest':loopTest, 'preCache':false, 'sleep':sleep] ]
         data << [ ['load':load * 2,'threads':threads,'count':count,'clearCache':true, 'loopTest':loopTest, 'preCache':false, 'sleep':sleep] ]
+        data << [ ['load':load * 2,'threads':threads,'count':count,'clearCache':false, 'loopTest':loopTest, 'preCache':true, 'sleep':sleep] ]
         data << [ ['load':load * 2,'threads':threads,'count':count,'clearCache':true, 'loopTest':loopTest, 'preCache':true, 'sleep':sleep] ]
 
 //        load = 25; threads = 5; count = 15
@@ -91,12 +96,33 @@ class TestThreading
         cp = NCubeManager.getCube(ApplicationID.testAppId, 'sys.classpath')
         NCubeManager.clearCache()
         NCubeManager.addCube(ApplicationID.testAppId,cp)
+
+        File genSourcesDir = new File('target/generated-sources')
+        if (!genSourcesDir.isDirectory()) {
+            assertFalse("${genSourcesDir.path} should be a directory",genSourcesDir.isDirectory())
+            genSourcesDir.mkdirs()
+        }
+
+        File genClassesDir = new File('target/generated-classes')
+        if (!genClassesDir.isDirectory()) {
+            assertFalse("${genClassesDir.path} should be a directory",genClassesDir.isDirectory())
+            genClassesDir.mkdirs()
+        }
+
+        NCubeManager.clearSysParams()
+        String srcDirPath = genSourcesDir.path
+        String clsDirPath = genClassesDir.path
+        System.setProperty("NCUBE_PARAMS", "{\"${NCUBE_PARAMS_GENERATED_SOURCES_DIR}\":\"${srcDirPath}\",\"${NCUBE_PARAMS_GENERATED_CLASSES_DIR}\":\"${clsDirPath}\"}")
+        assertEquals(srcDirPath,NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_SOURCES_DIR])
+        assertEquals(clsDirPath,NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_CLASSES_DIR])
     }
 
     @After
     void tearDown()
     {
         TestingDatabaseHelper.tearDownDatabase()
+        System.clearProperty('NCUBE_PARAMS')
+        NCubeManager.clearSysParams()
     }
 
 //    @Ignore
@@ -170,7 +196,6 @@ class TestThreading
         def allFailures = new ConcurrentLinkedQueue<Exception>()
         long totalDuration = 0
         loopTest.times { i ->
-            long start = System.currentTimeMillis()
             if (i>0) LOG.debug "->loop: ${i}"
             if (clearCache) {
                 LOG.debug '==>clear cache'
@@ -181,25 +206,13 @@ class TestThreading
             }
 
             if (preCache) {
-                LOG.debug '==>pre-cache'
-                maxThreads.times { tid ->
-                    count.times { cnt ->
-                        try
-                        {
-                            cube.getCell(['tid':tid,'cnt':cnt,'sleep':0L,'interface':ifc])
-                        }
-                        catch (Exception e)
-                        {
-                            Throwable rootCause = StackTraceUtils.extractRootCause(e)
-                            if (!rootCause.message.toLowerCase().contains('code cleared while'))
-                            {
-                                failures.add(rootCause)
-                            }
-                        }
-                    }
-                }
+                long startCache = System.currentTimeMillis()
+                NCubeManager.getCube(ApplicationID.testAppId,'thread').compile()
+                NCubeManager.getCube(ApplicationID.testAppId,'threadCount').compile()
+                LOG.info "==>pre-cache, took ${System.currentTimeMillis()-startCache}ms"
             }
 
+            long start = System.currentTimeMillis()
             LOG.debug '==>creating threads'
             def threads = new ConcurrentLinkedQueue<>()
             def failures = new ConcurrentLinkedQueue<>()
@@ -302,7 +315,7 @@ class TestThreading
 
         LOG.debug 'cells...'
         maxThreads.times { tid ->
-            threadCube.setCell(new GroovyExpression('@threadCount[:]', null, false), ['tid':tid])
+            threadCube.setCell(new GroovyExpression('1.times { i -> i }\n1.times { x -> x }\n@threadCount[:]', null, false), ['tid':tid])
             maxCount.times { cnt ->
 
                 GroovyExpression cell = null
@@ -314,7 +327,8 @@ class TestThreading
                         cell = new GroovyExpression("if (input.get('sleep',0L)>0) sleep(input.sleep)\n'test-' + input.tid + '-' + input.cnt",null, false)
                         break
                     case 2:
-                        cell = new GroovyExpression(null,'files/ncube/threadCount.groovy', false)
+                        cell = new GroovyExpression(null,'com/cedarsoftware/ncube/util/ThreadCount.groovy', false)
+//                        cell = new GroovyExpression(null,'files/ncube/ThreadCount.groovy', false)
                         break
                 }
 

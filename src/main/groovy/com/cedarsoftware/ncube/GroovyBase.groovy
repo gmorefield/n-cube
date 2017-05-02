@@ -1,5 +1,6 @@
 package com.cedarsoftware.ncube
 
+import com.cedarsoftware.ncube.util.CdnClassLoader
 import com.cedarsoftware.util.EncryptionUtilities
 import com.cedarsoftware.util.ReflectionUtils
 import com.cedarsoftware.util.StringUtilities
@@ -21,6 +22,8 @@ import java.util.regex.Matcher
 
 import static com.cedarsoftware.ncube.NCubeConstants.NCUBE_PARAMS_BYTE_CODE_DEBUG
 import static com.cedarsoftware.ncube.NCubeConstants.NCUBE_PARAMS_BYTE_CODE_VERSION
+import static com.cedarsoftware.ncube.NCubeConstants.NCUBE_PARAMS_GENERATED_CLASSES_DIR
+import static com.cedarsoftware.ncube.NCubeConstants.NCUBE_PARAMS_GENERATED_SOURCES_DIR
 
 /**
  * Base class for Groovy CommandCells.
@@ -168,6 +171,7 @@ abstract class GroovyBase extends UrlCommandCell
         if (ret.gclass instanceof Class)
         {   // Found class matching URL fileName.groovy already in JVM
             setRunnableCode(ret.gclass as Class)
+            L2Cache[L2CacheKey] = ret.gclass as Class
             return
         }
 
@@ -247,6 +251,7 @@ abstract class GroovyBase extends UrlCommandCell
         compilationUnit.compile(Phases.CLASS_GENERATION)
         Map<String, Class> L2Cache = getAppL2Cache(getNCube(ctx).applicationID)
         Class generatedClass = defineClasses(gcLoader, compilationUnit.classes, L2Cache, groovySource)
+
         return generatedClass
     }
 
@@ -282,6 +287,16 @@ abstract class GroovyBase extends UrlCommandCell
                 // return reference to main class
                 root = clazz
                 mainClassBytes = gclass.bytes
+
+                if (isInlineClass(className))
+                {
+                    dumpGeneratedSource(clazz,groovySource)
+                }
+            }
+
+            if (isInlineClass(className))
+            {
+                dumpGeneratedClass(gclass)
             }
         }
 
@@ -301,7 +316,82 @@ abstract class GroovyBase extends UrlCommandCell
         gcLoader.loadClass(ReflectionUtils.getClassNameFromByteCode(mainClassBytes), false, true, true)
         setRunnableCode(root)
         L2Cache[L2CacheKey] = root
+
         return root
+    }
+
+    /**
+     * Return true for classes that represent inline Groovy expressions for a cell
+     * @param className
+     * @return
+     */
+    private boolean isInlineClass(String className) {
+        return className && className.contains("_${L2CacheKey}")
+    }
+
+    /**
+     * Writes generated Groovy source to the directory identified by the NCUBE_PARAM:genSrcDir
+     * @param groovySource
+     */
+    private void dumpGeneratedSource(Class clazz, String groovySource) {
+        String genSrcDir = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_SOURCES_DIR]
+        if (genSrcDir) {
+            File sourceDir = new File(genSrcDir)
+            if (sourceDir.isDirectory()) {
+                String packageName = clazz.package.name.replace('.',File.separator)  //'ncube/grv/exp'
+                File packageDir = new File("${sourceDir.path}/${packageName}")
+                if (!packageDir.isDirectory()) {
+                    packageDir.mkdirs()
+                }
+//                File sourceFile = new File("${packageDir.path}/N_${L2CacheKey}.groovy")
+                File sourceFile = new File("${packageDir.path}/${clazz.simpleName}.groovy")
+                sourceFile.newWriter().withWriter { w -> w << groovySource }
+            }
+        }
+    }
+
+    /**
+     * Writes the generated Groovy class to the directory identified by the NCUBE_PARAM:genClsDir
+     * @param className String containing name of
+     * @param gclass
+     */
+    private void dumpGeneratedClass(GroovyClass gclass) {
+        String genClsDir = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_CLASSES_DIR]
+        if (genClsDir) {
+            File classesDir = new File(genClsDir)
+            if (!classesDir.isDirectory()) {
+                classesDir.mkdirs()
+            }
+            dumpClass(classesDir.path, gclass.name, gclass.bytes)
+        }
+    }
+
+    /**
+     * Writes Class bytes to the specified dump directory
+     * @param baseDir String containing directory path to write Class definition to
+     * @param className String containing name of Class
+     * @param classBytes byte [] of Class
+     */
+    private void dumpClass(String baseDir, String className, byte[] classBytes) {
+        try
+        {
+            // create package directories if needed
+            File classFile = new File("${baseDir}/${className.replace('.',File.separator)}.class")
+
+            File outputDir = classFile.parentFile
+            if (!outputDir.isDirectory())
+            {
+                outputDir.mkdirs()
+            }
+
+            classFile.newOutputStream().withStream { stream ->
+                stream.write(classBytes)
+            }
+        }
+        catch (Exception e)
+        {
+            LOG.warn("Failed to write class:${className} to dir:${baseDir}",e)
+        }
     }
 
     private static Class defineClass(GroovyClassLoader loader, byte[] byteCode)
@@ -353,6 +443,7 @@ abstract class GroovyBase extends UrlCommandCell
         }
         else if (isUrlUsed)
         {
+            GroovyClassLoader gcLoader = getAppIdClassLoader(ctx)
             if (url.endsWith('.groovy'))
             {
                 // If a class exists already with the same name as the groovy file (substituting slashes for dots),
@@ -363,20 +454,34 @@ abstract class GroovyBase extends UrlCommandCell
                 {
                     String className = url - '.groovy'
                     className = className.replace('/', '.')
-                    output.gclass = Class.forName(className)
+                    output.gclass = gcLoader.loadClass(className,false,true,true)
+                    LOG.trace("Loaded class:${className},url:${url}")
                     return output
                 }
                 catch (Exception ignored)
                 { }
             }
 
+            output.loader = gcLoader
             URL groovySourceUrl = getActualUrl(ctx)
-            output.loader = getAppIdClassLoader(ctx)
             output.source = StringUtilities.createUtf8String(UrlUtilities.getContentFromUrl(groovySourceUrl, true))
         }
         else
         {   // inline code
-            output.loader = getAppIdClassLoader(ctx)
+
+            GroovyClassLoader gcLoader = getAppIdClassLoader(ctx)
+            try
+            {
+                output.gclass = gcLoader.loadClass("ncube.grv.exp.N_${L2CacheKey}",false,true,true)
+                LOG.trace("Loaded inline class:N_${L2CacheKey}")
+                return output
+            }
+            catch (Exception ignored)
+            {
+                LOG.trace( "Failed to load inline class:N_${L2CacheKey}")
+            }
+
+            output.loader = gcLoader
             output.source = cmd
         }
         output.source = expandNCubeShortCuts(buildGroovy(ctx, output.source as String))

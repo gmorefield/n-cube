@@ -963,6 +963,50 @@ class NCube<T>
     }
 
     /**
+     * Pre-compile command cells, meta-properties, and rule conditions that are expressions
+     */
+    def compile()
+    {
+        cells.values().each { cell ->
+            if(cell instanceof GroovyBase) {
+                compileCell(cell as GroovyBase)
+            }
+        }
+
+        metaProps.values().each { value ->
+            if (value instanceof GroovyBase) {
+                compileCell(value as GroovyBase)
+            }
+        }
+
+        axisList.values().each { axis ->
+            axis.columns.each { column ->
+                if (column.value instanceof GroovyBase) {
+                    compileCell(column.value as GroovyBase)
+                }
+
+                if (column.metaProps)
+                column.metaProps.values().each { value ->
+                    if (value instanceof GroovyBase) {
+                        compileCell(value as GroovyBase)
+                    }
+                }
+            }
+
+            if (axis.metaProps)
+            axis.metaProps.values().each { value ->
+                if (value instanceof GroovyBase) {
+                    compileCell(value as GroovyBase)
+                }
+            }
+        }
+    }
+
+    private void compileCell(GroovyBase groovyBase) {
+        groovyBase.prepare(groovyBase.cmd ?: groovyBase.url, prepareExecutionContext([:],[:]))
+    }
+
+    /**
      * Given the passed in column IDs, return the column level default value
      * if one exists or null otherwise.  In the case of intersection, then null
      * is returned, meaning that the n-cube level default cell value will be

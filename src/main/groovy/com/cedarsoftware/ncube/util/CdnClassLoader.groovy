@@ -7,6 +7,7 @@ import groovy.transform.CompileStatic
 import java.util.concurrent.ConcurrentHashMap
 
 import static com.cedarsoftware.ncube.NCubeConstants.NCUBE_ACCEPTED_DOMAINS
+import static com.cedarsoftware.ncube.NCubeConstants.NCUBE_PARAMS_GENERATED_CLASSES_DIR
 
 /**
  *  @author Ken Partlow (kpartlow@gmail.com)
@@ -41,7 +42,7 @@ class CdnClassLoader extends GroovyClassLoader
      */
     CdnClassLoader(ClassLoader loader, boolean preventRemoteBeanInfo = true, boolean preventRemoteCustomizer = true, List<String> acceptedDomains = null)
     {
-        super(loader, null)
+        super(configureParentClassLoader(loader), null)
         _preventRemoteBeanInfo = preventRemoteBeanInfo
         _preventRemoteCustomizer = preventRemoteCustomizer
 
@@ -63,6 +64,20 @@ class CdnClassLoader extends GroovyClassLoader
         }
     }
 
+    private static ClassLoader configureParentClassLoader(ClassLoader parent) {
+        String genClsDir = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_CLASSES_DIR]
+        if (genClsDir)
+        {
+            File classesDir = new File(genClsDir)
+            if (!classesDir.isDirectory())
+            {
+                classesDir.mkdirs()
+            }
+            return new URLClassLoader([classesDir.toURI().toURL()] as URL [], parent)
+        }
+        return parent
+    }
+
     /**
      * Create a class loader that will have the additional URLs added to the classpath.
      * @param urlList List of String URLs to be added to the classpath.
@@ -72,6 +87,7 @@ class CdnClassLoader extends GroovyClassLoader
     CdnClassLoader(List<String> urlList, List<String> acceptedDomains = null)
     {
         this(CdnClassLoader.class.classLoader, true, true, acceptedDomains)
+
         addURLs(urlList)
     }
 
