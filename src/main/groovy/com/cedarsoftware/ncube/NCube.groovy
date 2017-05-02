@@ -967,43 +967,50 @@ class NCube<T>
      */
     def compile()
     {
-        cells.values().each { cell ->
+        cells.each { ids, cell ->
             if(cell instanceof GroovyBase) {
-                compileCell(cell as GroovyBase)
+                compileCell(getCoordinateFromIds(ids), cell as GroovyBase)
             }
         }
 
-        metaProps.values().each { value ->
+        metaProps.each { key, value ->
             if (value instanceof GroovyBase) {
-                compileCell(value as GroovyBase)
+                compileCell([metaProp:key],value as GroovyBase)
             }
         }
 
-        axisList.values().each { axis ->
+        axisList.each { axisName, axis ->
             axis.columns.each { column ->
                 if (column.value instanceof GroovyBase) {
-                    compileCell(column.value as GroovyBase)
+                    compileCell([axis:axisName,column:column.columnName],column.value as GroovyBase)
                 }
 
                 if (column.metaProps)
-                column.metaProps.values().each { value ->
+                column.metaProps.each { key, value ->
                     if (value instanceof GroovyBase) {
-                        compileCell(value as GroovyBase)
+                        compileCell([axis:axisName,column:column.columnName,metaProp:key],value as GroovyBase)
                     }
                 }
             }
 
             if (axis.metaProps)
-            axis.metaProps.values().each { value ->
+            axis.metaProps.each { key, value ->
                 if (value instanceof GroovyBase) {
-                    compileCell(value as GroovyBase)
+                    compileCell([axis:axisName,metaProp:key],value as GroovyBase)
                 }
             }
         }
     }
 
-    private void compileCell(GroovyBase groovyBase) {
-        groovyBase.prepare(groovyBase.cmd ?: groovyBase.url, prepareExecutionContext([:],[:]))
+    private void compileCell(Map input, GroovyBase groovyBase) {
+        try
+        {
+            groovyBase.prepare(groovyBase.cmd ?: groovyBase.url, prepareExecutionContext(input,[:]))
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException("Failed to compile cell for cube:${this.name} with coords:${input.toString()}",e)
+        }
     }
 
     /**
