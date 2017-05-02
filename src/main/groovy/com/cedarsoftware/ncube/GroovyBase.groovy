@@ -1,6 +1,5 @@
 package com.cedarsoftware.ncube
 
-import com.cedarsoftware.ncube.util.CdnClassLoader
 import com.cedarsoftware.util.EncryptionUtilities
 import com.cedarsoftware.util.ReflectionUtils
 import com.cedarsoftware.util.StringUtilities
@@ -290,7 +289,7 @@ abstract class GroovyBase extends UrlCommandCell
 
                 if (isInlineClass(className))
                 {
-                    dumpGeneratedSource(clazz,groovySource)
+                    dumpGeneratedSource(className,groovySource)
                 }
             }
 
@@ -326,71 +325,40 @@ abstract class GroovyBase extends UrlCommandCell
      * @return
      */
     private boolean isInlineClass(String className) {
-        return className && className.contains("_${L2CacheKey}")
+        return className && className.contains("N_${L2CacheKey}")
     }
 
     /**
      * Writes generated Groovy source to the directory identified by the NCUBE_PARAM:genSrcDir
      * @param groovySource
      */
-    private void dumpGeneratedSource(Class clazz, String groovySource) {
-        String genSrcDir = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_SOURCES_DIR]
-        if (genSrcDir) {
-            File sourceDir = new File(genSrcDir)
-            if (sourceDir.isDirectory()) {
-                String packageName = clazz.package.name.replace('.',File.separator)  //'ncube/grv/exp'
-                File packageDir = new File("${sourceDir.path}/${packageName}")
-                if (!packageDir.isDirectory()) {
-                    packageDir.mkdirs()
-                }
-//                File sourceFile = new File("${packageDir.path}/N_${L2CacheKey}.groovy")
-                File sourceFile = new File("${packageDir.path}/${clazz.simpleName}.groovy")
-                sourceFile.newWriter().withWriter { w -> w << groovySource }
+    private void dumpGeneratedSource(String className, String groovySource) {
+        String srcPath = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_SOURCES_DIR]
+        if (srcPath) {
+            File sourceFile = new File("${srcPath}/${className.replace('.',File.separator)}.groovy")
+            File sourceDir = sourceFile.parentFile
+            if (!sourceDir.isDirectory()) {
+                sourceDir.mkdirs()
             }
+            sourceFile.newWriter().withWriter { w -> w << groovySource }
         }
     }
 
     /**
      * Writes the generated Groovy class to the directory identified by the NCUBE_PARAM:genClsDir
-     * @param className String containing name of
-     * @param gclass
+     * @param gclass GroovyClass identifying name and byte [] of Class to write
      */
     private void dumpGeneratedClass(GroovyClass gclass) {
-        String genClsDir = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_CLASSES_DIR]
-        if (genClsDir) {
-            File classesDir = new File(genClsDir)
+        String classesPath = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_CLASSES_DIR]
+        if (classesPath) {
+            File classesFile = new File("${classesPath}/${gclass.name.replace('.',File.separator)}.class")
+            File classesDir = classesFile.parentFile
             if (!classesDir.isDirectory()) {
                 classesDir.mkdirs()
             }
-            dumpClass(classesDir.path, gclass.name, gclass.bytes)
-        }
-    }
-
-    /**
-     * Writes Class bytes to the specified dump directory
-     * @param baseDir String containing directory path to write Class definition to
-     * @param className String containing name of Class
-     * @param classBytes byte [] of Class
-     */
-    private void dumpClass(String baseDir, String className, byte[] classBytes) {
-        try
-        {
-            // create package directories if needed
-            File classFile = new File("${baseDir}/${className.replace('.',File.separator)}.class")
-
-            File outputDir = classFile.parentFile
-            if (!outputDir.isDirectory())
-            {
-                outputDir.mkdirs()
+            classesFile.newOutputStream().withStream { stream ->
+                stream.write(gclass.bytes)
             }
-
-            classFile.newOutputStream().withStream { stream ->
-                stream.write(classBytes)
-            }
-        }
-        catch (Exception e)
-        {
-            LOG.warn("Failed to write class:${className} to dir:${baseDir}",e)
         }
     }
 
