@@ -508,7 +508,7 @@ abstract class GroovyBase extends UrlCommandCell
         String content
         if (url == null)
         {
-            content = data != null ? data.toString() : ""
+            content = buildGroovy(ctx, (data != null ? data.toString() : ""))
         }
         else
         {   // specified via URL, add classLoader URL strings to URL for SHA-1 source.
