@@ -98,6 +98,7 @@ abstract class GroovyBase extends UrlCommandCell
     {
         Map<String, Class> L2Cache = getAppL2Cache(appId)
         L2Cache.clear()
+        directories.clear()
     }
 
     protected static Map<String, Class> getAppL2Cache(ApplicationID appId)
@@ -333,14 +334,18 @@ abstract class GroovyBase extends UrlCommandCell
      * @param groovySource
      */
     private void dumpGeneratedSource(String className, String groovySource) {
-        String srcPath = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_SOURCES_DIR]
-        if (srcPath) {
-            File sourceFile = new File("${srcPath}/${className.replace('.',File.separator)}.groovy")
-            File sourceDir = sourceFile.parentFile
-            if (!sourceDir.isDirectory()) {
-                sourceDir.mkdirs()
-            }
+        String sourcesDir = getParamDirectory(NCUBE_PARAMS_GENERATED_SOURCES_DIR)
+        if (!sourcesDir) {
+            return
+        }
+
+        File sourceFile = null
+        try {
+            sourceFile = new File("${sourcesDir}/${className.replace('.',File.separator)}.groovy")
             sourceFile.newWriter().withWriter { w -> w << groovySource }
+        }
+        catch (Exception e) {
+            LOG.warn("Failed to write source file with path=${sourceFile?.path}",e)
         }
     }
 
@@ -349,16 +354,53 @@ abstract class GroovyBase extends UrlCommandCell
      * @param gclass GroovyClass identifying name and byte [] of Class to write
      */
     private void dumpGeneratedClass(GroovyClass gclass) {
-        String classesPath = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_CLASSES_DIR]
-        if (classesPath) {
-            File classesFile = new File("${classesPath}/${gclass.name.replace('.',File.separator)}.class")
-            File classesDir = classesFile.parentFile
-            if (!classesDir.isDirectory()) {
-                classesDir.mkdirs()
-            }
-            classesFile.newOutputStream().withStream { stream ->
+        String classesDir = getParamDirectory(NCUBE_PARAMS_GENERATED_CLASSES_DIR)
+        if (!classesDir) {
+            return
+        }
+
+        File classFile = null
+        try {
+            classFile = new File("${classesDir}/${gclass.name.replace('.',File.separator)}.class")
+            classFile.newOutputStream().withStream { stream ->
                 stream.write(gclass.bytes)
             }
+        }
+        catch (Exception e) {
+            LOG.warn("Failed to write class file with path=${classFile?.path}",e)
+        }
+    }
+
+    private static ConcurrentMap directories = new ConcurrentHashMap<>()
+    private static String getParamDirectory(String ncubeParamKey) {
+        if (!directories.containsKey(ncubeParamKey)) {
+            String paramValue = NCubeManager.getSystemParams()[ncubeParamKey] ?: ''
+            try {
+                if (paramValue) {
+                    File baseDir = new File(paramValue as String)
+                    ensureDirectoryExists(baseDir)
+
+                    File expressionDir = new File("${baseDir.path}/ncube/grv/exp")
+                    ensureDirectoryExists(expressionDir)
+
+                }
+                directories.putIfAbsent(ncubeParamKey, paramValue)
+            }
+            catch (Exception e) {
+                directories.putIfAbsent(ncubeParamKey, '')
+                LOG.error("Failed to create directories with path=${paramValue}", e)
+            }
+        }
+
+        return directories[ncubeParamKey]
+    }
+
+    private static void ensureDirectoryExists(File dir) {
+        if (!dir.exists() && !dir.isDirectory()) {
+            dir.mkdirs()
+        }
+        if (!dir.exists() || !dir.isDirectory()) {
+            throw new IOException("Failed to create directory=${dir?.path}")
         }
     }
 
@@ -445,9 +487,7 @@ abstract class GroovyBase extends UrlCommandCell
                 return output
             }
             catch (Exception ignored)
-            {
-                LOG.trace( "Failed to load inline class:N_${L2CacheKey}")
-            }
+            { }
 
             output.loader = gcLoader
             output.source = cmd
