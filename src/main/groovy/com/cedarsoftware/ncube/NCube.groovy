@@ -985,18 +985,20 @@ class NCube<T>
                     compileCell([axis:axisName,column:column.columnName],column.value as GroovyBase)
                 }
 
-                if (column.metaProps)
-                column.metaProps.each { key, value ->
-                    if (value instanceof GroovyBase) {
-                        compileCell([axis:axisName,column:column.columnName,metaProp:key],value as GroovyBase)
+                if (column.metaProps) {
+                    column.metaProps.each { key, value ->
+                        if (value instanceof GroovyBase) {
+                            compileCell([axis:axisName,column:column.columnName,metaProp:key],value as GroovyBase)
+                        }
                     }
                 }
             }
 
-            if (axis.metaProps)
-            axis.metaProps.each { key, value ->
-                if (value instanceof GroovyBase) {
-                    compileCell([axis:axisName,metaProp:key],value as GroovyBase)
+            if (axis.metaProps) {
+                axis.metaProps.each { key, value ->
+                    if (value instanceof GroovyBase) {
+                        compileCell([axis:axisName,metaProp:key],value as GroovyBase)
+                    }
                 }
             }
         }
@@ -1009,7 +1011,7 @@ class NCube<T>
         }
         catch (Exception e)
         {
-            throw new RuntimeException("Failed to compile cell for cube:${this.name} with coords:${input.toString()}",e)
+            LOG.warn("Failed to compile cell for cube:${this.name} with coords:${input.toString()}",e)
         }
     }
 
