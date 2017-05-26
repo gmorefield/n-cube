@@ -60,7 +60,7 @@ class GroovyExpression extends GroovyBase
         super(cmd, url, cache)
     }
 
-    protected String buildGroovy(Map<String, Object> ctx, String theirGroovy)
+    protected String buildGroovy(Map<String, Object> ctx, String className, String theirGroovy)
     {
         Matcher m = Regexes.hasClassDefPattern.matcher(theirGroovy)
         if (m.find())
@@ -119,7 +119,7 @@ import com.cedarsoftware.util.io.*
         }
 
         groovy.append("""\
-class N_${L2CacheKey} extends ${expClassName}
+class ${className} extends ${expClassName}
 {
     def run()
     {

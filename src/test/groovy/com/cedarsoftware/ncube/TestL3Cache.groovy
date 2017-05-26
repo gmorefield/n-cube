@@ -38,6 +38,7 @@ class TestL3Cache
     private NCube testCube
     private File sourcesDir
     private File classesDir
+    private File singleDir
 
     private static File targetDir
     private static String savedNcubeParams
@@ -55,22 +56,25 @@ class TestL3Cache
     @Before
     void setUp()
     {
+        sourcesDir = new File("${targetDir.path}/TestL3Cache-sources")
+        classesDir = new File("${targetDir.path}/TestL3Cache-classes")
+        singleDir = new File ("${targetDir.path}/single-l3cache")
+
         TestingDatabaseHelper.setupDatabase()
         reloadCubes()
 
-        sourcesDir = new File("${targetDir.path}/TestL3Cache-sources")
-        if (sourcesDir.exists()) {
-            assertTrue('directory should be purged',sourcesDir.deleteDir())
-        }
-        assertFalse('directory should not already exist',sourcesDir.exists())
-
-        classesDir = new File("${targetDir.path}/TestL3Cache-classes")
-        if (classesDir.exists()) {
-            assertTrue('directory should be purged',classesDir.deleteDir())
-        }
-        assertFalse('directory should not already exist',classesDir.exists())
+        clearDirectory(sourcesDir)
+        clearDirectory(classesDir)
+        clearDirectory(singleDir)
 
         configureSysParams(sourcesDir.path,classesDir.path)
+    }
+
+    private void clearDirectory(File dir) {
+        if (dir.exists()) {
+            assertTrue('directory should be purged', dir.deleteDir())
+        }
+        assertFalse('directory should not already exist', dir.exists())
     }
 
     @After
@@ -100,12 +104,12 @@ class TestL3Cache
         Map output = [:]
         testCube.getCell([name:'simple'],output)
 
-        String className = output.simple
-        assertTrue(className.startsWith('N_'))
+        Class expClass = output.simple
+        assertTrue(expClass.simpleName.startsWith('N_'))
         assertTrue(sourcesDir.exists())
         assertTrue(classesDir.exists())
-        verifySourceAndClassFilesExist(className)
-        assertEquals(className,findLoadedClass(className).simpleName)
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
     }
 
     /**
@@ -118,27 +122,24 @@ class TestL3Cache
         // load the expression initially
         Map output = [:]
         testCube.getCell([name:'simple'],output)
-        String className = output.simple
+        Class expClass = output.simple
 
-        verifySourceAndClassFilesExist(className)
-        assertEquals(className,findLoadedClass(className).simpleName)
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
 
         // clear the cache, but make sure l3 cache still exists
         reloadCubes()
         assertTrue(getLoadedClasses().isEmpty())
-        verifySourceAndClassFilesExist(className)
+        verifyClassFileExistence(expClass)
 
         // clear the source file in order to detect if a recompile occurs or class loaded from l3 cache
-        File sourceFile = new File ("${sourcesDir}/ncube/grv/exp/${className}.groovy")
-        assertTrue(sourceFile.exists())
-        sourceFile.delete()
-        assertFalse(sourceFile.exists())
+        clearDirectory(sourcesDir)
 
         // re-execute the cube and ensure class was reloaded
         output.clear()
         testCube.getCell([name:'simple'],output)
-        assertEquals(className,findLoadedClass(className).simpleName)
-        assertFalse(sourceFile.exists())
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+        assertFalse(sourcesDir.exists())
     }
 
     /**
@@ -160,11 +161,11 @@ class TestL3Cache
         testCube.extractMetaPropertyValue(nameAxis.findColumn('simple').getMetaProperty('metaTest'),[:],output)
 
         // validate sources/classes have been created for the expressions
-        verifySourceAndClassFilesExist(output.metaCube as String)
-        verifySourceAndClassFilesExist(output.metaAxis as String)
-        verifySourceAndClassFilesExist(output.metaColumn as String)
-        verifySourceAndClassFilesExist(output.metaRule as String)
-        verifySourceAndClassFilesExist(output.simple as String)
+        verifySourceAndClassFilesExistence(output.metaCube as Class)
+        verifySourceAndClassFilesExistence(output.metaAxis as Class)
+        verifySourceAndClassFilesExistence(output.metaColumn as Class)
+        verifySourceAndClassFilesExistence(output.metaRule as Class)
+        verifySourceAndClassFilesExistence(output.simple as Class)
     }
 
     /**
@@ -176,20 +177,103 @@ class TestL3Cache
         Map output = [:]
         testCube.getCell([name:'innerClass'],output)
 
-        String className = output.innerClass
-        String innerClassName = "${className}\$1"
-        verifySourceAndClassFilesExist(className)
-        verifySourceAndClassFilesExist(innerClassName)
-        assertEquals(className,findLoadedClass(className).simpleName)
+        Class expClass = output.innerClass
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+
+        String innerClassName = "${expClass.name}\$1"
+        verifyFileExistence(sourcesDir,innerClassName,'groovy',false)
+        verifyFileExistence(classesDir,innerClassName,'class',true)
+//        verifySourceFileExistence(innerClassName,false)
+//        verifyClassFileExistence(innerClassName)
 
         reloadCubes()
         assertTrue(getLoadedClasses().isEmpty())
-        verifySourceAndClassFilesExist(className)
-        verifySourceAndClassFilesExist(innerClassName)
+        verifyClassFileExistence(expClass)
+        verifyFileExistence(classesDir,innerClassName,'class',true)
+//        verifyClassFileExistence(innerClassName)
 
         output.clear()
         testCube.getCell([name:'innerClass'],output)
-        assertEquals(className,findLoadedClass(className).simpleName)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+        verifySourceFileExistence(expClass,false)
+    }
+
+    /**
+     * Test verifies that custom classes are supported
+     */
+    @Test
+    void testExpressionWithCustomClass()
+    {
+        Map output = [:]
+        testCube.getCell([name:'customClass'],output)
+
+        Class expClass = output.customClass
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+
+        reloadCubes()
+        assertTrue(getLoadedClasses().isEmpty())
+        verifyClassFileExistence(expClass)
+
+        output.clear()
+        testCube.getCell([name:'customClass'],output)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+        verifySourceFileExistence(expClass,false)
+    }
+
+    /**
+     * Test verifies that custom classes with matching names will load based on first one accessed and cached
+     */
+    @Test
+    void testExpressionWithMatchingCustomClass()
+    {
+        // load customClass before customMatchingClass
+        Map output = [:]
+        testCube.getCell([name:'customClass'],output)
+
+        Class expClass = output.customClass
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+
+        // verify customMatchingClass matches customClass
+        output.clear()
+        testCube.getCell([name:'customMatchingClass'],output)
+        assertFalse(output.containsKey('customMatchingClass'))  // won't find second implementation
+        assertTrue(output.containsKey('customClass')) // still find first implementation
+
+        reloadCubes()
+        assertTrue(getLoadedClasses().isEmpty())
+        verifyClassFileExistence(expClass)
+
+        // load customMatchingClass before customClass will load cached customClass still
+        output.clear()
+        testCube.getCell([name:'customMatchingClass'],output)
+        assertFalse(output.containsKey('customMatchingClass')) // second still not found
+        assertTrue(output.containsKey('customClass')) // first still returns
+    }
+
+    /**
+     * Test verifies that custom classes with custom package are supported
+     */
+    @Test
+    void testExpressionWithCustomClassAndPackage()
+    {
+        Map output = [:]
+        testCube.getCell([name:'customPackage'],output)
+
+        Class expClass = output.customPackage
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+
+        reloadCubes()
+        assertTrue(getLoadedClasses().isEmpty())
+        verifyClassFileExistence(expClass)
+
+        output.clear()
+        testCube.getCell([name:'customPackage'],output)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+        verifySourceFileExistence(expClass,false)
     }
 
     /**
@@ -198,8 +282,7 @@ class TestL3Cache
     @Test
     void testUsingSameDirectory()
     {
-        sourcesDir = new File ("${targetDir}/single-l3cache")
-        classesDir = sourcesDir
+        sourcesDir = classesDir = singleDir
         configureSysParams(sourcesDir.path,classesDir.path)
 
         assertFalse(sourcesDir.exists())
@@ -210,9 +293,9 @@ class TestL3Cache
         testCube.getCell([name:'simple'],output)
 
         // validate class loaded, but no cache directories created
-        String className = output.simple
-        verifySourceAndClassFilesExist(className)
-        assertEquals(className,findLoadedClass(className).simpleName)
+        Class expClass = output.simple
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
     }
 
     /**
@@ -236,8 +319,8 @@ class TestL3Cache
         testCube.getCell([name:'simple'],output)
 
         // validate class loaded, but no cache directories created
-        String className = output.simple
-        assertEquals(className,findLoadedClass(className).simpleName)
+        Class expClass = output.simple
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
     }
 
     @Test
@@ -246,11 +329,11 @@ class TestL3Cache
         Map output = [:]
         testCube.getCell([name:'simple'],output)
 
-        String origClassName = output.simple
+        Class origClass = output.simple
         assertTrue(sourcesDir.exists())
         assertTrue(classesDir.exists())
-        verifySourceAndClassFilesExist(origClassName)
-        assertEquals(origClassName,findLoadedClass(origClassName).simpleName)
+        verifySourceAndClassFilesExistence(origClass)
+        assertEquals(origClass.name,findLoadedClass(origClass).name)
 
         reloadCubes()
         loadTestCube(sysPrototypeDef.bytes)
@@ -258,8 +341,8 @@ class TestL3Cache
         output.clear()
         testCube.getCell([name:'simple'],output)
 
-        String newClassName = output.simple
-        assertNotEquals(origClassName,newClassName)
+        Class newClass = output.simple
+        assertNotEquals(origClass.name,newClass.name)
     }
 
     private void configureSysParams(srcDirPath,clsDirPath)
@@ -283,6 +366,8 @@ class TestL3Cache
         NCubeManager.addCube(ApplicationID.testAppId, proto)
 
         testCube = loadTestCube(L3CacheCubeDef.bytes)
+
+        clearDirectory(sourcesDir)
     }
 
     private NCube loadTestCube(byte [] bytes)
@@ -294,19 +379,36 @@ class TestL3Cache
         return testCube
     }
 
-    private boolean verifySourceAndClassFilesExist(String fileName) {
-        if (!fileName.contains('$')) {
-            File sourceFile = new File ("${sourcesDir}/ncube/grv/exp/${fileName}.groovy")
-            assertTrue(fileName,sourceFile.exists())
-        }
+    private boolean verifySourceAndClassFilesExistence(Class clazz, boolean exists=true) {
+//        verifyFileExistence(sourcesDir,clazz,'groovy',exists)
+        verifySourceFileExistence(clazz,exists)
+        verifyClassFileExistence(clazz,exists)
+    }
 
-        File classFile = new File ("${classesDir}/ncube/grv/exp/${fileName}.class")
-        assertTrue(fileName,classFile.exists())
+    private boolean verifySourceFileExistence(Class clazz, boolean exists=true) {
+        verifyFileExistence(sourcesDir,clazz.name,'groovy',exists)
+    }
+
+    private boolean verifyClassFileExistence(Class clazz, boolean exists=true) {
+        verifyFileExistence(classesDir,clazz.name,'class',exists)
+    }
+
+    private boolean verifyFileExistence(File dir, String className, String extension, boolean exists=true) {
+        String fileName = className.contains('.') ? "${className.replace('.',File.separator)}" : "ncube/grv/exp/${className}"
+
+        File classFile = new File ("${dir.path}/${fileName}.${extension}")
+        assertEquals("file=${classFile.path} should ${exists?'':'not '}exist",exists,classFile.exists())
+    }
+
+
+    private Class findLoadedClass(Class clazz)
+    {
+        return getLoadedClasses().find { it.name == clazz.name}
     }
 
     private Class findLoadedClass(String name)
     {
-        return getLoadedClasses().find { it.simpleName == name}
+        return getLoadedClasses().find { it.simpleName == name || it.name == name}
     }
 
     private List<Class> getLoadedClasses()
@@ -326,7 +428,7 @@ class TestL3Cache
   "ncube":"test.L3CacheTest",
   "metaTest":{
     "type":"exp",
-    "value":"output.metaCube = this.class.simpleName"
+    "value":"output.metaCube = this.class"
   },
   "axes":[
     {
@@ -335,7 +437,7 @@ class TestL3Cache
       "hasDefault":true,
       "metaTest":{
         "type":"exp",
-        "value":"output.metaAxis = this.class.simpleName"
+        "value":"output.metaAxis = this.class"
       },
       "type":"DISCRETE",
       "valueType":"STRING",
@@ -347,7 +449,7 @@ class TestL3Cache
           "type":"string",
           "metaTest":{
             "type":"exp",
-            "value":"output.metaColumn = this.class.simpleName"
+            "value":"output.metaColumn = this.class"
           },
           "value":"simple"
         },
@@ -360,6 +462,21 @@ class TestL3Cache
           "id":"innerClass",
           "type":"string",
           "value":"innerClass"
+        },
+        {
+          "id":"customClass",
+          "type":"string",
+          "value":"customClass"
+        },
+        {
+          "id":"customMatchingClass",
+          "type":"string",
+          "value":"customMatchingClass"
+        },
+        {
+          "id":"customPackage",
+          "type":"string",
+          "value":"customPackage"
         }
       ]
     },
@@ -376,7 +493,7 @@ class TestL3Cache
           "id":2000714454923,
           "type":"exp",
           "name":"useRule",
-          "value":"if (input.useRule) {output.metaRule = this.class.simpleName}\nreturn input.useRule"
+          "value":"if (input.useRule) {output.metaRule = this.class}\nreturn input.useRule"
         }
       ]
     }
@@ -387,21 +504,60 @@ class TestL3Cache
         1000329189157
       ],
       "type":"exp",
-      "value":"output.simple = this.class.simpleName\nreturn output.simple"
+      "value":"output.simple = this.class"
     },
     {
       "id":[
         1001649720956
       ],
       "type":"exp",
-      "value":"output.simple = this.class.simpleName\nreturn output.simple"
+      "value":"output.simple = this.class"
     },
     {
       "id":[
         "innerClass"
       ],
       "type":"exp",
-      "value":"Comparator c = new Comparator() { int compare(Object o1, Object o2) { return 0 } }\noutput.innerClass = this.class.simpleName\nreturn output.innerClass"
+      "value":"Comparator c = new Comparator() { int compare(Object o1, Object o2) { return 0 } }
+output.innerClass = this.class"
+    },
+    {
+      "id":[
+        "customClass"
+      ],
+      "type":"exp",
+      "value":"package ncube.grv.exp
+class CustomClass extends NCubeGroovyExpression {
+ def run() {
+  output.customClass = this.class
+ }
+}"
+    },
+    {
+      "id":[
+        "customMatchingClass"
+      ],
+      "type":"exp",
+      "value":"package ncube.grv.exp
+class CustomClass extends NCubeGroovyExpression {
+ def run() {
+  output.customMatchingClass = this.class
+ }
+}"
+    },
+    {
+      "id":[
+        "customPackage"
+      ],
+      "type":"exp",
+      "value":"package ncube.test
+import ncube.grv.exp.*
+class CustomPackage extends NCubeGroovyExpression
+{
+def run() {
+output.customPackage = this.class
+}
+}"
     }
   ]
 }'''

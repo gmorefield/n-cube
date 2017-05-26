@@ -48,12 +48,15 @@ abstract class GroovyBase extends UrlCommandCell
 {
     private static final Logger LOG = LogManager.getLogger(GroovyBase.class)
     protected transient String L2CacheKey  // in-memory cache of (SHA-1(source) || SHA-1(URL + classpath.urls)) to compiled class
+    protected transient String fullClassName  // full name of compiled class
     private volatile transient Class runnableCode = null
     /**
      * This cache is 'per ApplicationID'.  This allows different applications to define the same
      * class (URL to groovy), yet have different source code for that class.
      */
     private static final ConcurrentMap<ApplicationID, ConcurrentMap<String, Class>> L2_CACHE = new ConcurrentHashMap<>()
+
+    private static final ConcurrentMap<String,String> directories = new ConcurrentHashMap<>()
 
     //  Private constructor only for serialization.
     protected GroovyBase() {}
@@ -92,7 +95,7 @@ abstract class GroovyBase extends UrlCommandCell
         return result
     }
 
-    protected abstract String buildGroovy(Map<String, Object> ctx, String theirGroovy)
+    protected abstract String buildGroovy(Map<String, Object> ctx, String className, String theirGroovy)
 
     protected static void clearCache(ApplicationID appId)
     {
@@ -156,7 +159,9 @@ abstract class GroovyBase extends UrlCommandCell
             return
         }
 
-        computeL2CacheKey(data, ctx)
+        if (!L2CacheKey) {
+            computeL2CacheKey(data, ctx)
+        }
         Map<String, Class> L2Cache = getAppL2Cache(getNCube(ctx).applicationID)
 
         // check L2 cache
@@ -260,6 +265,12 @@ abstract class GroovyBase extends UrlCommandCell
         String urlClassName = ''
         if (url != null)
         {
+            Matcher m = Regexes.hasClassDefPattern.matcher(groovySource)
+            if (m.find()) {
+                String packageName = m.group('packageName')
+                String className = m.group('className')
+                fullClassName = packageName ? "${packageName}.${className}" : className
+            }
             urlClassName = url - '.groovy'
             urlClassName = urlClassName.replace('/', '.')
         }
@@ -282,19 +293,19 @@ abstract class GroovyBase extends UrlCommandCell
             }
 
             // Persist class bytes
-            if (className == urlClassName || (isRoot && root == null && NCubeGroovyExpression.isAssignableFrom(clazz)))
+            if (className == urlClassName || className == fullClassName || (isRoot && root == null && NCubeGroovyExpression.isAssignableFrom(clazz)))
             {
                 // return reference to main class
                 root = clazz
                 mainClassBytes = gclass.bytes
 
-                if (isInlineClass(className))
+                if (url==null)
                 {
                     dumpGeneratedSource(className,groovySource)
                 }
             }
 
-            if (isInlineClass(className))
+            if (url==null)
             {
                 dumpGeneratedClass(gclass)
             }
@@ -321,15 +332,6 @@ abstract class GroovyBase extends UrlCommandCell
     }
 
     /**
-     * Return true for classes that represent inline Groovy expressions for a cell
-     * @param className
-     * @return
-     */
-    private boolean isInlineClass(String className) {
-        return className && className.contains("N_${L2CacheKey}")
-    }
-
-    /**
      * Writes generated Groovy source to the directory identified by the NCUBE_PARAM:genSrcDir
      * @param groovySource
      */
@@ -342,10 +344,20 @@ abstract class GroovyBase extends UrlCommandCell
         File sourceFile = null
         try {
             sourceFile = new File("${sourcesDir}/${className.replace('.',File.separator)}.groovy")
+            ensurePackageDirExists(className, sourceFile)
             sourceFile.newWriter().withWriter { w -> w << groovySource }
         }
         catch (Exception e) {
             LOG.warn("Failed to write source file with path=${sourceFile?.path}",e)
+        }
+    }
+
+    private void ensurePackageDirExists(String className, File outputFile) {
+        if (!Regexes.isNcubeGrvExpClass.matcher(className).matches()) {
+            File parent = outputFile.getParentFile()
+            if (!parent.exists() && !parent.isDirectory()) {
+                parent.mkdirs()
+            }
         }
     }
 
@@ -362,6 +374,7 @@ abstract class GroovyBase extends UrlCommandCell
         File classFile = null
         try {
             classFile = new File("${classesDir}/${gclass.name.replace('.',File.separator)}.class")
+            ensurePackageDirExists(gclass.name,classFile)
             classFile.newOutputStream().withStream { stream ->
                 stream.write(gclass.bytes)
             }
@@ -371,10 +384,9 @@ abstract class GroovyBase extends UrlCommandCell
         }
     }
 
-    private static ConcurrentMap directories = new ConcurrentHashMap<>()
     private static String getParamDirectory(String ncubeParamKey) {
         if (!directories.containsKey(ncubeParamKey)) {
-            String paramValue = NCubeManager.getSystemParams()[ncubeParamKey] ?: ''
+            String paramValue = NCubeManager.getSystemParams()[ncubeParamKey] as String ?: ''
             try {
                 if (paramValue) {
                     File baseDir = new File(paramValue as String)
@@ -482,8 +494,8 @@ abstract class GroovyBase extends UrlCommandCell
             GroovyClassLoader gcLoader = getAppIdClassLoader(ctx)
             try
             {
-                output.gclass = gcLoader.loadClass("ncube.grv.exp.N_${L2CacheKey}",false,true,true)
-                LOG.trace("Loaded inline class:N_${L2CacheKey}")
+                output.gclass = gcLoader.loadClass(fullClassName,false,true,true)
+                LOG.trace("Loaded inline class:${fullClassName}")
                 return output
             }
             catch (Exception ignored)
@@ -492,7 +504,7 @@ abstract class GroovyBase extends UrlCommandCell
             output.loader = gcLoader
             output.source = cmd
         }
-        output.source = expandNCubeShortCuts(buildGroovy(ctx, output.source as String))
+        output.source = expandNCubeShortCuts(buildGroovy(ctx, "N_${L2CacheKey}", output.source as String))
         return output
     }
 
@@ -506,9 +518,16 @@ abstract class GroovyBase extends UrlCommandCell
     private void computeL2CacheKey(Object data, Map<String, Object> ctx)
     {
         String content
+        String packageName
+        String className
         if (url == null)
         {
-            content = buildGroovy(ctx, (data != null ? data.toString() : ""))
+            content = expandNCubeShortCuts(buildGroovy(ctx, 'N_null', (data != null ? data.toString() : "")))
+            Matcher m = Regexes.hasClassDefPattern.matcher(content)
+            if (m.find()) {
+                packageName = m.group('packageName')
+                className = m.group('className')
+            }
         }
         else
         {   // specified via URL, add classLoader URL strings to URL for SHA-1 source.
@@ -524,7 +543,15 @@ abstract class GroovyBase extends UrlCommandCell
             s.append(url)
             content = s.toString()
         }
-        L2CacheKey = EncryptionUtilities.calculateSHA1Hash(StringUtilities.getUTF8Bytes(content))
+        String cacheKey = EncryptionUtilities.calculateSHA1Hash(StringUtilities.getUTF8Bytes(content))
+
+        if (url==null) {
+            if (className == 'N_null') {
+                className = "N_${cacheKey}"
+            }
+            fullClassName = packageName==null ? className : "${packageName}.${className}"
+        }
+        L2CacheKey = cacheKey
     }
 
     private static GroovyClassLoader getAppIdClassLoader(Map<String, Object> ctx)
