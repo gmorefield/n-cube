@@ -42,6 +42,7 @@ class TestThreading
     private NCube cp
 
     private static final Logger LOG = LogManager.getLogger(TestThreading.class)
+    private static String savedNcubeParams = System.getProperty('NCUBE_PARAMS')
 
     @Parameterized.Parameters(name = "{0}")
     static Collection<Object[]> data() {
@@ -120,7 +121,12 @@ class TestThreading
     void tearDown()
     {
         TestingDatabaseHelper.tearDownDatabase()
-        System.clearProperty('NCUBE_PARAMS')
+        if (savedNcubeParams) {
+            System.setProperty('NCUBE_PARAMS',savedNcubeParams)
+        }
+        else {
+            System.clearProperty('NCUBE_PARAMS')
+        }
         NCubeManager.clearSysParams()
     }
 
