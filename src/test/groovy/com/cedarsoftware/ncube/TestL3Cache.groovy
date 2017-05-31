@@ -323,6 +323,30 @@ class TestL3Cache
         assertEquals(expClass.name,findLoadedClass(expClass).name)
     }
 
+    /**
+     * Test verifies that caching is not enabled if no directories are specified
+     */
+    @Test
+    void testNoParameters()
+    {
+        File sourcesFile = new File ("${targetDir}/NoParams-sources")
+        assertFalse(sourcesFile.exists())
+        File classesFile = new File ("${targetDir}/NoParams-sources")
+        assertFalse(classesFile.exists())
+
+        System.clearProperty('NCUBE_PARAMS')
+        NCubeManager.clearSysParams()
+
+        Map output = [:]
+        testCube.getCell([name:'simple'],output)
+
+        // validate class loaded, but no cache directories created
+        Class expClass = output.simple
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+        assertFalse(sourcesFile.exists())
+        assertFalse(classesFile.exists())
+    }
+
     @Test
     void testSysPrototypeChange()
     {
