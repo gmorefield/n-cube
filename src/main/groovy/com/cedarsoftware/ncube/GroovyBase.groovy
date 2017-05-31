@@ -256,7 +256,6 @@ abstract class GroovyBase extends UrlCommandCell
         compilationUnit.compile(Phases.CLASS_GENERATION)
         Map<String, Class> L2Cache = getAppL2Cache(getNCube(ctx).applicationID)
         Class generatedClass = defineClasses(gcLoader, compilationUnit.classes, L2Cache, groovySource)
-
         return generatedClass
     }
 
@@ -265,12 +264,6 @@ abstract class GroovyBase extends UrlCommandCell
         String urlClassName = ''
         if (url != null)
         {
-            Matcher m = Regexes.hasClassDefPattern.matcher(groovySource)
-            if (m.find()) {
-                String packageName = m.group('packageName')
-                String className = m.group('className')
-                fullClassName = packageName ? "${packageName}.${className}" : className
-            }
             urlClassName = url - '.groovy'
             urlClassName = urlClassName.replace('/', '.')
         }
@@ -327,7 +320,6 @@ abstract class GroovyBase extends UrlCommandCell
         gcLoader.loadClass(ReflectionUtils.getClassNameFromByteCode(mainClassBytes), false, true, true)
         setRunnableCode(root)
         L2Cache[L2CacheKey] = root
-
         return root
     }
 
@@ -484,13 +476,12 @@ abstract class GroovyBase extends UrlCommandCell
                 { }
             }
 
-            output.loader = gcLoader
             URL groovySourceUrl = getActualUrl(ctx)
+            output.loader = gcLoader
             output.source = StringUtilities.createUtf8String(UrlUtilities.getContentFromUrl(groovySourceUrl, true))
         }
         else
         {   // inline code
-
             GroovyClassLoader gcLoader = getAppIdClassLoader(ctx)
             try
             {
@@ -518,16 +509,9 @@ abstract class GroovyBase extends UrlCommandCell
     private void computeL2CacheKey(Object data, Map<String, Object> ctx)
     {
         String content
-        String packageName
-        String className
         if (url == null)
         {
             content = expandNCubeShortCuts(buildGroovy(ctx, 'N_null', (data != null ? data.toString() : "")))
-            Matcher m = Regexes.hasClassDefPattern.matcher(content)
-            if (m.find()) {
-                packageName = m.group('packageName')
-                className = m.group('className')
-            }
         }
         else
         {   // specified via URL, add classLoader URL strings to URL for SHA-1 source.
@@ -546,6 +530,15 @@ abstract class GroovyBase extends UrlCommandCell
         String cacheKey = EncryptionUtilities.calculateSHA1Hash(StringUtilities.getUTF8Bytes(content))
 
         if (url==null) {
+            String packageName
+            String className
+
+            Matcher m = Regexes.hasClassDefPattern.matcher(content)
+            if (m.find()) {
+                packageName = m.group('packageName')
+                className = m.group('className')
+            }
+
             if (className == 'N_null') {
                 className = "N_${cacheKey}"
             }

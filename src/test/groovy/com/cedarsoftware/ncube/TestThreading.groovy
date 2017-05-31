@@ -6,7 +6,6 @@ import org.apache.logging.log4j.Logger
 import org.codehaus.groovy.runtime.StackTraceUtils
 import org.junit.After
 import org.junit.Before
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
@@ -232,7 +231,7 @@ class TestThreading
                                 catch (Exception e)
                                 {
                                     Throwable rootCause = StackTraceUtils.extractRootCause(e)
-                                    if (!rootCause.message.toLowerCase().contains('code cleared while'))
+                                    if (!rootCause?.message?.toLowerCase()?.contains('code cleared while'))
                                     {
                                         failures.add(rootCause)
                                     }
@@ -327,8 +326,7 @@ class TestThreading
                         cell = new GroovyExpression("if (input.get('sleep',0L)>0) sleep(input.sleep)\n'test-' + input.tid + '-' + input.cnt",null, false)
                         break
                     case 2:
-                        cell = new GroovyExpression(null,'com/cedarsoftware/ncube/util/ThreadCount.groovy', false)
-//                        cell = new GroovyExpression(null,'files/ncube/ThreadCount.groovy', false)
+                        cell = new GroovyExpression(null,'files/ncube/ThreadCount.groovy', false)
                         break
                 }
 
