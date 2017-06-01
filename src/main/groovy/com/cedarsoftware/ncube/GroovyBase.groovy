@@ -47,6 +47,7 @@ import static com.cedarsoftware.ncube.NCubeConstants.NCUBE_PARAMS_GENERATED_SOUR
 abstract class GroovyBase extends UrlCommandCell
 {
     private static final Logger LOG = LogManager.getLogger(GroovyBase.class)
+    public static final String CLASS_NAME_FOR_L2_CALC = 'N_null'
     protected transient String L2CacheKey  // in-memory cache of (SHA-1(source) || SHA-1(URL + classpath.urls)) to compiled class
     protected transient String fullClassName  // full name of compiled class
     private volatile transient Class runnableCode = null
@@ -489,6 +490,10 @@ abstract class GroovyBase extends UrlCommandCell
                 LOG.trace("Loaded inline class:${fullClassName}")
                 return output
             }
+            catch (LinkageError error)
+            {
+                LOG.warn("Failed to load inline class:${fullClassName}. Will attempt to compile",error)
+            }
             catch (Exception ignored)
             { }
 
@@ -511,7 +516,7 @@ abstract class GroovyBase extends UrlCommandCell
         String content
         if (url == null)
         {
-            content = expandNCubeShortCuts(buildGroovy(ctx, 'N_null', (data != null ? data.toString() : "")))
+            content = expandNCubeShortCuts(buildGroovy(ctx, CLASS_NAME_FOR_L2_CALC, (data != null ? data.toString() : "")))
         }
         else
         {   // specified via URL, add classLoader URL strings to URL for SHA-1 source.
@@ -539,7 +544,7 @@ abstract class GroovyBase extends UrlCommandCell
                 className = m.group('className')
             }
 
-            if (className == 'N_null') {
+            if (className == CLASS_NAME_FOR_L2_CALC) {
                 className = "N_${cacheKey}"
             }
             fullClassName = packageName==null ? className : "${packageName}.${className}"

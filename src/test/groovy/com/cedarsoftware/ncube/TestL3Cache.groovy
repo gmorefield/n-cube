@@ -5,6 +5,7 @@ import org.apache.logging.log4j.Logger
 import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
+import org.junit.Ignore
 import org.junit.Test
 
 import java.lang.reflect.Field
@@ -184,19 +185,81 @@ class TestL3Cache
         String innerClassName = "${expClass.name}\$1"
         verifyFileExistence(sourcesDir,innerClassName,'groovy',false)
         verifyFileExistence(classesDir,innerClassName,'class',true)
-//        verifySourceFileExistence(innerClassName,false)
-//        verifyClassFileExistence(innerClassName)
 
         reloadCubes()
         assertTrue(getLoadedClasses().isEmpty())
         verifyClassFileExistence(expClass)
         verifyFileExistence(classesDir,innerClassName,'class',true)
-//        verifyClassFileExistence(innerClassName)
 
         output.clear()
         testCube.getCell([name:'innerClass'],output)
         assertEquals(expClass.name,findLoadedClass(expClass).name)
         verifySourceFileExistence(expClass,false)
+    }
+
+
+    /**
+     * Test verifies that classes will be recompiled if cache files are invalid
+     */
+    @Test
+    void testInvalidClassFile()
+    {
+        // invoke cell initially to determine name of class
+        Map output = [:]
+        testCube.getCell([name:'simple'],output)
+
+        Class expClass = output.simple
+        String simpleClassName = expClass.name
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+
+        // reload and clear class file to force compilation attempt
+        reloadCubes()
+        File classFile = new File ("${classesDir.path}/${simpleClassName.replace('.',File.separator)}.class")
+        classFile.delete()
+        verifyFileExistence(classesDir,simpleClassName,'class',false)
+        classFile.newWriter().withWriter { w -> w << 'bogus class file' }
+        verifyFileExistence(classesDir,simpleClassName,'class',true)
+
+        // re-access cell and verify compilation took place
+        output.clear()
+        testCube.getCell([name:'simple'],output)
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+    }
+
+    /**
+     * Test verifies that classes will be recompiled if cache files are invalid
+     */
+    @Test
+    @Ignore('Need to determine if and how this should be handled as LinkageError is thrown at runtime (invoking run)')
+    void testMissingInnerClass()
+    {
+        Map output = [:]
+        testCube.getCell([name:'innerClass'],output)
+
+        Class expClass = output.innerClass
+        verifySourceAndClassFilesExistence(expClass)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+
+        String innerClassName = "${expClass.name}\$1"
+        verifyFileExistence(sourcesDir,innerClassName,'groovy',false)
+        verifyFileExistence(classesDir,innerClassName,'class',true)
+
+        // remove the inner class to cause a class load failure
+        File innerClassFile = new File ("${classesDir.path}/${innerClassName.replace('.',File.separator)}.class")
+        innerClassFile.delete()
+
+        reloadCubes()
+        assertTrue(getLoadedClasses().isEmpty())
+        verifyClassFileExistence(expClass)
+        verifyFileExistence(classesDir,innerClassName,'class',false)
+
+        output.clear()
+        testCube.getCell([name:'innerClass'],output)
+        assertEquals(expClass.name,findLoadedClass(expClass).name)
+        verifySourceFileExistence(expClass,true)
+        verifyFileExistence(classesDir,innerClassName,'class',true)
     }
 
     /**
@@ -424,15 +487,9 @@ class TestL3Cache
         assertEquals("file=${classFile.path} should ${exists?'':'not '}exist",exists,classFile.exists())
     }
 
-
     private Class findLoadedClass(Class clazz)
     {
         return getLoadedClasses().find { it.name == clazz.name}
-    }
-
-    private Class findLoadedClass(String name)
-    {
-        return getLoadedClasses().find { it.simpleName == name || it.name == name}
     }
 
     private List<Class> getLoadedClasses()
