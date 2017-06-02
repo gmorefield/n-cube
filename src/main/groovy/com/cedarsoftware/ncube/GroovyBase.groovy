@@ -57,8 +57,6 @@ abstract class GroovyBase extends UrlCommandCell
      */
     private static final ConcurrentMap<ApplicationID, ConcurrentMap<String, Class>> L2_CACHE = new ConcurrentHashMap<>()
 
-    private static final ConcurrentMap<String,String> directories = new ConcurrentHashMap<>()
-
     //  Private constructor only for serialization.
     protected GroovyBase() {}
 
@@ -102,7 +100,6 @@ abstract class GroovyBase extends UrlCommandCell
     {
         Map<String, Class> L2Cache = getAppL2Cache(appId)
         L2Cache.clear()
-        directories.clear()
     }
 
     protected static Map<String, Class> getAppL2Cache(ApplicationID appId)
@@ -329,7 +326,7 @@ abstract class GroovyBase extends UrlCommandCell
      * @param groovySource
      */
     private void dumpGeneratedSource(String className, String groovySource) {
-        String sourcesDir = getParamDirectory(NCUBE_PARAMS_GENERATED_SOURCES_DIR)
+        String sourcesDir = NCubeManager.getSystemDirectory(NCUBE_PARAMS_GENERATED_SOURCES_DIR)
         if (!sourcesDir) {
             return
         }
@@ -359,7 +356,7 @@ abstract class GroovyBase extends UrlCommandCell
      * @param gclass GroovyClass identifying name and byte [] of Class to write
      */
     private void dumpGeneratedClass(GroovyClass gclass) {
-        String classesDir = getParamDirectory(NCUBE_PARAMS_GENERATED_CLASSES_DIR)
+        String classesDir = NCubeManager.getSystemDirectory(NCUBE_PARAMS_GENERATED_CLASSES_DIR)
         if (!classesDir) {
             return
         }
@@ -374,38 +371,6 @@ abstract class GroovyBase extends UrlCommandCell
         }
         catch (Exception e) {
             LOG.warn("Failed to write class file with path=${classFile?.path}",e)
-        }
-    }
-
-    private static String getParamDirectory(String ncubeParamKey) {
-        if (!directories.containsKey(ncubeParamKey)) {
-            String paramValue = NCubeManager.getSystemParams()[ncubeParamKey] as String ?: ''
-            try {
-                if (paramValue) {
-                    File baseDir = new File(paramValue as String)
-                    ensureDirectoryExists(baseDir)
-
-                    File expressionDir = new File("${baseDir.path}/ncube/grv/exp")
-                    ensureDirectoryExists(expressionDir)
-
-                }
-                directories.putIfAbsent(ncubeParamKey, paramValue)
-            }
-            catch (Exception e) {
-                directories.putIfAbsent(ncubeParamKey, '')
-                LOG.error("Failed to create directories with path=${paramValue}", e)
-            }
-        }
-
-        return directories[ncubeParamKey]
-    }
-
-    private static void ensureDirectoryExists(File dir) {
-        if (!dir.exists() && !dir.isDirectory()) {
-            dir.mkdirs()
-        }
-        if (!dir.exists() || !dir.isDirectory()) {
-            throw new IOException("Failed to create directory=${dir?.path}")
         }
     }
 

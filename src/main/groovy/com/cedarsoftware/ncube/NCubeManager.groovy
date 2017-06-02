@@ -67,6 +67,7 @@ class NCubeManager
 
     // not private in case we want to tweak things for testing.
     protected static volatile ConcurrentMap<String, Object> systemParams = null
+    protected static volatile ConcurrentMap<String,String> systemDirs = new ConcurrentHashMap<>()
 
     private static final ThreadLocal<String> userId = new ThreadLocal<String>() {
         String initialValue()
@@ -144,6 +145,32 @@ class NCubeManager
     protected static void clearSysParams()
     {
         systemParams = null;
+    }
+
+    static String getSystemDirectory(String ncubeParamKey)
+    {
+        if (!systemDirs.containsKey(ncubeParamKey))
+        {
+            String paramValue = NCubeManager.getSystemParams()[ncubeParamKey] as String ?: ''
+            try
+            {
+                if (paramValue) {
+                    File baseDir = new File(paramValue as String)
+                    ensureDirectoryExists(baseDir)
+
+                    File expressionDir = new File("${baseDir.path}/ncube/grv/exp")
+                    ensureDirectoryExists(expressionDir)
+
+                }
+                systemDirs.putIfAbsent(ncubeParamKey, paramValue)
+            }
+            catch (Exception e) {
+                systemDirs.putIfAbsent(ncubeParamKey, '')
+                LOG.error("Failed to create directories with path=${paramValue}", e)
+            }
+        }
+
+        return systemDirs[ncubeParamKey]
     }
 
     /**
@@ -422,6 +449,7 @@ class NCubeManager
             {
                 clearCache(appId1)
             }
+            systemDirs.clear()
         }
     }
 
@@ -2092,5 +2120,14 @@ target axis: ${transformApp} / ${transformVersion} / ${transformCubeName}""")
             }
         }
         return value
+    }
+
+    private static void ensureDirectoryExists(File dir) {
+        if (!dir.exists() && !dir.isDirectory()) {
+            dir.mkdirs()
+        }
+        if (!dir.exists() || !dir.isDirectory()) {
+            throw new IOException("Failed to create directory=${dir?.path}")
+        }
     }
 }

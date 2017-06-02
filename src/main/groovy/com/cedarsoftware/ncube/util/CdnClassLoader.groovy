@@ -65,15 +65,11 @@ class CdnClassLoader extends GroovyClassLoader
     }
 
     private static ClassLoader configureParentClassLoader(ClassLoader parent) {
-        String genClsDir = NCubeManager.getSystemParams()[NCUBE_PARAMS_GENERATED_CLASSES_DIR]
-        if (genClsDir)
+        String classesDir = NCubeManager.getSystemDirectory(NCUBE_PARAMS_GENERATED_CLASSES_DIR)
+        if (classesDir)
         {
-            File classesDir = new File(genClsDir)
-            if (!classesDir.isDirectory())
-            {
-                classesDir.mkdirs()
-            }
-            return new URLClassLoader([classesDir.toURI().toURL()] as URL [], parent)
+            File classesFile = new File(classesDir)
+            return new URLClassLoader([classesFile.toURI().toURL()] as URL [], parent)
         }
         return parent
     }

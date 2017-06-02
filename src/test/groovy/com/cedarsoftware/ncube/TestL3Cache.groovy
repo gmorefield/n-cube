@@ -376,7 +376,10 @@ class TestL3Cache
 
         assertTrue(sourceFile.exists())
         assertTrue(classesFile.exists())
-        assertTrue(getLoadedClasses().isEmpty())
+
+        // ensure directories are not configured
+        assertEquals('',NCubeManager.getSystemDirectory(NCUBE_PARAMS_GENERATED_CLASSES_DIR))
+        assertEquals('',NCubeManager.getSystemDirectory(NCUBE_PARAMS_GENERATED_SOURCES_DIR))
 
         Map output = [:]
         testCube.getCell([name:'simple'],output)
