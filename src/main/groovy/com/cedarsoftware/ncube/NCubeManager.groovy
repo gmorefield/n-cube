@@ -145,6 +145,7 @@ class NCubeManager
     protected static void clearSysParams()
     {
         systemParams = null;
+        clearSysDirs()
     }
 
     static String getSystemDirectory(String ncubeParamKey)
@@ -160,7 +161,6 @@ class NCubeManager
 
                     File expressionDir = new File("${baseDir.path}/ncube/grv/exp")
                     ensureDirectoryExists(expressionDir)
-
                 }
                 systemDirs.putIfAbsent(ncubeParamKey, paramValue)
             }
@@ -171,6 +171,11 @@ class NCubeManager
         }
 
         return systemDirs[ncubeParamKey]
+    }
+
+    protected static void clearSysDirs()
+    {
+        systemDirs.clear()
     }
 
     /**
@@ -449,7 +454,6 @@ class NCubeManager
             {
                 clearCache(appId1)
             }
-            systemDirs.clear()
         }
     }
 

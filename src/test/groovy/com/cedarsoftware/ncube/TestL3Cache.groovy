@@ -458,6 +458,7 @@ class TestL3Cache
         testCube = loadTestCube(L3CacheCubeDef.bytes)
 
         clearDirectory(sourcesDir)
+        NCubeManager.clearSysDirs() // force directory check
     }
 
     private NCube loadTestCube(byte [] bytes)
