@@ -83,15 +83,18 @@ class LocalFileCache {
         }
 
         // try to load item from cache
-        Cache.ValueWrapper valueWrapper
+        Cache.ValueWrapper valueWrapper = null
         File cacheFile = checkInLocalCache(appId, cubeName)
 
         def isFile = cacheFile.isFile()
         if (isFile && cacheFile.length()>0) {
             try {
-                NCube ncube
+                NCube ncube = null
                 cacheFile.withInputStream {stream ->
                     ncube = NCube.fromSimpleJson(stream)
+                }
+                if (!ncube) {
+                    throw new IllegalStateException("Failed to build ncube:${cubeName} from file stream")
                 }
                 ncube.applicationID = appId
                 valueWrapper = new SimpleValueWrapper(ncube)
