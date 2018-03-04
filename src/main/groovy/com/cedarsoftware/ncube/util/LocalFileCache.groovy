@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component
 
 import javax.annotation.PostConstruct
 
-import static com.cedarsoftware.ncube.SnapshotPolicy.IGNORE
+import static com.cedarsoftware.ncube.SnapshotPolicy.RELEASE_ONLY
 import static com.cedarsoftware.ncube.SnapshotPolicy.OFFLINE
 
 @Component("localFileCache")
@@ -21,7 +21,7 @@ class LocalFileCache {
     private static final Logger LOG = LoggerFactory.getLogger(LocalFileCache.class)
 
     @Value('${ncube.cache.dir:}') String cacheDir
-    @Value('${ncube.cache.snapshotPolicy:IGNORE}') SnapshotPolicy snapshotPolicy
+    @Value('${ncube.cache.snapshotPolicy:RELEASE_ONLY}') SnapshotPolicy snapshotPolicy
 
     LocalFileCache() {
     }
@@ -78,7 +78,7 @@ class LocalFileCache {
     Cache.ValueWrapper get(ApplicationID appId, String cubeName)
     {
         boolean isSnapshot = appId.isSnapshot()
-        if (!cacheDir || (isSnapshot && IGNORE==snapshotPolicy)) {
+        if (!cacheDir || (isSnapshot && RELEASE_ONLY==snapshotPolicy)) {
             return null
         }
 
@@ -128,7 +128,7 @@ class LocalFileCache {
      */
     void put(ApplicationID appId, String cubeName, NCube ncube) {
         boolean isSnapshot = appId.isSnapshot()
-        if (isSnapshot && IGNORE==snapshotPolicy) {
+        if (isSnapshot && RELEASE_ONLY==snapshotPolicy) {
             return
         }
 

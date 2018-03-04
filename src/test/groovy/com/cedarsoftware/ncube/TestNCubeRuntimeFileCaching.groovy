@@ -88,7 +88,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
         cacheManager.initializeCaches()
 
         cacheRuntime = new NCubeRuntime(callableBean, cacheManager, false, MOCK_BEAN_NAME)
-        cacheRuntime.localFileCache = new LocalFileCache(cacheDir.path,IGNORE)
+        cacheRuntime.localFileCache = new LocalFileCache(cacheDir.path,RELEASE_ONLY)
         cacheClient = cacheRuntime
     }
 
@@ -101,44 +101,44 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     void testDefaultSettings()
     {
         assertEquals('',((NCubeRuntime)ncubeRuntime).localFileCache.cacheDir)
-        assertEquals(IGNORE,((NCubeRuntime)ncubeRuntime).localFileCache.snapshotPolicy)
+        assertEquals(RELEASE_ONLY,((NCubeRuntime)ncubeRuntime).localFileCache.snapshotPolicy)
     }
 
     @Test
-    void testWriteValidSnapshotWithIgnore()
+    void testWriteValidSnapshotWithReleaseOnly()
     {
-        setSnapshotMode(IGNORE)
+        setSnapshotMode(RELEASE_ONLY)
         String cubeName = 'TestBranch'
 
         verifyFileExistence(snapshotId, cubeName, '', false)
         NCube cube = getCubeFromRuntime(snapshotId, cubeName)
         assertEquals(cubeName,cube.name)
 
-        // no cache files should be written with IGNORE
+        // no cache files should be written with RELEASE_ONLY
         verifySha1Existence(snapshotId, cubeName, null)
         verifyFileExistence(snapshotId, cubeName, '', false)
         verifyFileExistence(snapshotId, cubeName, cube.sha1(), false)
     }
 
     @Test
-    void testWriteMissingSnapshotWithIgnore()
+    void testWriteMissingSnapshotWithReleaseOnly()
     {
-        setSnapshotMode(IGNORE)
+        setSnapshotMode(RELEASE_ONLY)
         String cubeName = 'TestMissing'
 
         verifyFileExistence(snapshotId, cubeName, '', false)
         NCube cube = getCubeFromRuntime(snapshotId, cubeName)
         assertNull(cube)
 
-        // no cache files should be written with IGNORE
+        // no cache files should be written with RELEASE_ONLY
         verifySha1Existence(snapshotId, cubeName, null)
         verifyFileExistence(snapshotId, cubeName, '', false)
     }
 
     @Test
-    void testReadValidSnapshotWithIgnore()
+    void testReadValidSnapshotWithReleaseOnly()
     {
-        setSnapshotMode(IGNORE)
+        setSnapshotMode(RELEASE_ONLY)
         String cubeName = 'TestBranch'
         ApplicationID appId = snapshotId
 
@@ -164,9 +164,9 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testReadMissingSnapshotWithIgnore()
+    void testReadMissingSnapshotWithReleaseOnly()
     {
-        setSnapshotMode(IGNORE)
+        setSnapshotMode(RELEASE_ONLY)
         String cubeName = 'TestBranch'
         ApplicationID appId = snapshotId
 
@@ -186,25 +186,25 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWriteValidReleaseWithIgnore()
+    void testWriteValidReleaseWithReleaseOnly()
     {
-        setSnapshotMode(IGNORE)
+        setSnapshotMode(RELEASE_ONLY)
         String cubeName = 'TestBranch'
 
         verifyFileExistence(releaseId, cubeName, '', false)
         NCube cube = getCubeFromRuntime(releaseId, cubeName)
         assertEquals(cubeName,cube.name)
 
-        // release files should still be written even in IGNORE mode
+        // release files should still be written even in RELEASE_ONLY mode
         verifyFileExistence(releaseId, cubeName, '', true)
         assertTrue(getFileForCachedCube(releaseId,cubeName,'').length()>0)
         verifyFileExistence(releaseId, cubeName, cube.sha1(), false)
     }
 
     @Test
-    void testWriteMissingReleaseWithIgnore()
+    void testWriteMissingReleaseWithReleaseOnly()
     {
-        setSnapshotMode(IGNORE)
+        setSnapshotMode(RELEASE_ONLY)
         String cubeName = 'TestMissing'
 
         verifyFileExistence(releaseId, cubeName, '', false)
@@ -312,7 +312,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWithReadWriteNonChangingReleaseWithUpdate()
+    void testReadWriteNonChangingReleaseWithUpdate()
     {
         setSnapshotMode(UPDATE)
         String cubeName = 'TestBranch'
@@ -339,7 +339,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWithReadWriteNonChangingReleaseWithForce()
+    void testReadWriteNonChangingReleaseWithForce()
     {
         setSnapshotMode(FORCE)
         String cubeName = 'TestBranch'
@@ -366,7 +366,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWithReadWriteNonChangingSnapshotWithUpdate()
+    void testReadWriteNonChangingSnapshotWithUpdate()
     {
         setSnapshotMode(UPDATE)
         String cubeName = 'TestBranch'
@@ -398,7 +398,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWithReadWriteNonChangingSnapshotWithForce()
+    void testReadWriteNonChangingSnapshotWithForce()
     {
         setSnapshotMode(FORCE)
         String cubeName = 'TestBranch'
@@ -428,7 +428,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWithReadWriteChangingSnapshotWithUpdate()
+    void testReadWriteChangingSnapshotWithUpdate()
     {
         setSnapshotMode(UPDATE)
         String cubeName = 'TestBranch'
@@ -466,7 +466,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWithReadWriteChangingSnapshotWithForce()
+    void testReadWriteChangingSnapshotWithForce()
     {
         setSnapshotMode(FORCE)
         String cubeName = 'TestBranch'
@@ -504,7 +504,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWithReadWriteChangingToMissingSnapshotWithForce()
+    void testReadWriteChangingToMissingSnapshotWithForce()
     {
         setSnapshotMode(FORCE)
         String cubeName = 'TestBranch'
@@ -538,7 +538,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWithReadWriteMissingToValidSnapshotWithForce()
+    void testReadWriteMissingToValidSnapshotWithForce()
     {
         setSnapshotMode(FORCE)
         String cubeName = 'TestBranch'
@@ -610,7 +610,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testReadOfInvalidSha1WithOffline() {
+    void testOfflineReadOfInvalidSha1() {
         setSnapshotMode(OFFLINE)
         String cubeName = 'TestBranch'
         ApplicationID appId = snapshotId
@@ -627,7 +627,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testReadOfInvalidSnapshotWithOffline() {
+    void testOfflineReadOfInvalidSnapshot() {
         setSnapshotMode(OFFLINE)
         String cubeName = 'TestBranch'
         ApplicationID appId = snapshotId
@@ -647,7 +647,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
     }
 
     @Test
-    void testWriteWIthException()
+    void testWriteWithException()
     {
         setSnapshotMode(UPDATE)
         String cubeName = 'TestBranch'
