@@ -811,10 +811,10 @@ class NCubeRuntime implements NCubeMutableClient, NCubeRuntimeClient, NCubeTestC
         bean.call(beanName, 'reopenPullRequest', [prId]) as NCube
     }
 
-    Object[] getPullRequests(Date startDate = null, Date endDate = null)
+    Object[] getPullRequests(Date startDate = null, Date endDate = null, String prId = null)
     {
         verifyAllowMutable('getPullRequests')
-        Object[] result = bean.call(beanName, 'getPullRequests', [startDate, endDate]) as Object[]
+        Object[] result = bean.call(beanName, 'getPullRequests', [startDate, endDate, prId]) as Object[]
         return result
     }
 
