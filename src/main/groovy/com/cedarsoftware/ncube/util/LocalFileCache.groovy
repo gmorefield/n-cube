@@ -109,7 +109,7 @@ class LocalFileCache {
         else if (isFile) {
             valueWrapper = new SimpleValueWrapper(Boolean.FALSE)
         }
-        else if (OFFLINE==snapshotPolicy && !cubeName.startsWith("sys.")) {
+        else if (OFFLINE==snapshotPolicy) {
             throw new IllegalStateException("Failed to find cube:${cubeName} in offline cache")
         }
         else {

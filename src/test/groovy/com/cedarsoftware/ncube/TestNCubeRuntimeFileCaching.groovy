@@ -254,6 +254,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
         NCube loadedCube = createRuntimeCubeFromResource(appId,"test.branch.1.json")
         writeSha1File(appId, cubeName, loadedCube.sha1())
         writeFile(appId, cubeName, loadedCube.sha1(), loadedCube)
+        writeSha1File(appId, SYS_ADVICE, '')
 
         verifyFileExistence(appId, cubeName, '', false)
         NCube cube = getCubeFromRuntime(appId, cubeName)
@@ -302,6 +303,7 @@ class TestNCubeRuntimeFileCaching extends NCubeBaseTest
 
         NCube loadedCube = createRuntimeCubeFromResource(appId,"test.branch.1.json")
         writeFile(appId, cubeName, '', loadedCube)
+        writeFile(appId, SYS_ADVICE, '', null)
 
         verifyFileExistence(appId, cubeName, '', true)
         NCube cube = getCubeFromRuntime(appId, cubeName)
